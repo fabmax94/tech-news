@@ -1,7 +1,10 @@
 package com.fabmax.technews.presentation.ui.article
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Share
@@ -30,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -122,6 +127,32 @@ fun ArticleScreen(
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(uiState.article!!.link))
                         context.startActivity(intent)
                     },
+                    onAnalyzeWithClaude = {
+                        val prompt = buildClaudePrompt(uiState.article!!.link)
+
+                        val clipboard = context.getSystemService(ClipboardManager::class.java)
+                        clipboard.setPrimaryClip(ClipData.newPlainText("Claude Prompt", prompt))
+
+                        val claudeIntent = context.packageManager
+                            .getLaunchIntentForPackage("com.anthropic.claude")
+                        if (claudeIntent != null) {
+                            Toast.makeText(
+                                context,
+                                "Prompt copiado! Cole no Claude para analisar o artigo.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            context.startActivity(claudeIntent)
+                        } else {
+                            Toast.makeText(
+                                context,
+                                "Prompt copiado! Abrindo Claude no navegador — cole para analisar.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            context.startActivity(
+                                Intent(Intent.ACTION_VIEW, Uri.parse("https://claude.ai/new"))
+                            )
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
@@ -145,6 +176,7 @@ fun ArticleScreen(
 private fun ArticleContent(
     article: Article,
     onOpenInBrowser: () -> Unit,
+    onAnalyzeWithClaude: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -243,6 +275,21 @@ private fun ArticleContent(
                 Text("Abrir no navegador")
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            OutlinedButton(
+                onClick = onAnalyzeWithClaude,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Analisar com Claude")
+            }
+
             Spacer(modifier = Modifier.height(80.dp))
         }
     }
@@ -252,3 +299,17 @@ private fun formatDate(timestamp: Long): String {
     return SimpleDateFormat("dd 'de' MMMM 'de' yyyy 'às' HH:mm", Locale("pt", "BR"))
         .format(Date(timestamp))
 }
+
+private fun buildClaudePrompt(articleLink: String): String = """
+# Resumo
+
+Quero que você atue como professor especialista em artigos técnicos.
+Vou fornecer um link.
+Sua tarefa é:
+1. Traduzir o link para o português caso não esteja em português.
+2. Explicar de forma didática e detalhada, como se estivesse dando uma aula sobre o tema, trazendo exemplos práticos, contexto e impacto.
+3. Evite resumir demais: quero um nível de detalhe que cubra praticamente todos os pontos importantes do capítulo, mas explicado em linguagem clara e acessível, imagine que eu não li o livro e quero aprender sobre o conteúdo do livro, então não tente resumir muito para não perder informações importantes.
+4. Estruture sua resposta em seções com títulos e subtítulos, usando listas e tabelas quando for útil, pode usar à vontade recursos visuais.
+
+Link: $articleLink
+""".trimIndent()
